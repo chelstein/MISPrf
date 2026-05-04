@@ -66,6 +66,40 @@ php artisan serve
 
 Then open http://localhost:8000.
 
-Mock data is on by default (`RF_CONSOLE_USE_MOCK=true`). Flip to `false`
-and set `MISP_BASE_URL` / `MISP_API_KEY` to use the real MISP API once
-`App\Services\MispClient` is fleshed out.
+## Backend modes
+
+The `RF_CONSOLE_USE_MOCK` flag selects the data backend:
+
+| Mode | `.env`                                              | Behaviour |
+|------|-----------------------------------------------------|-----------|
+| Mock | `RF_CONSOLE_USE_MOCK=true` (default)                | `MispClient` returns shaped fixtures from `App\Services\MockData`. UI is fully working without any MISP server. |
+| Live | `RF_CONSOLE_USE_MOCK=false` + `MISP_BASE_URL` + `MISP_API_KEY` | `MispClient` issues real HTTP calls to MISP via Guzzle. |
+
+### Live MISP wiring
+
+`App\Services\MispClient` implements the following endpoints:
+
+| Method                          | Verb + path                       |
+|---------------------------------|-----------------------------------|
+| `searchEvents(array $params)`   | `POST /events/restSearch`         |
+| `getEvent(string $id)`          | `GET  /events/view/{id}`          |
+| `searchAttributes(array $p)`    | `POST /attributes/restSearch`     |
+| `searchSightings(array $p)`     | `POST /sightings/restSearch`      |
+| `listTags()`                    | `GET  /tags`                      |
+| `listGalaxies()`                | `GET  /galaxies`                  |
+| `getServerVersion()`            | `GET  /servers/getVersion`        |
+| `ping()`                        | wraps `getServerVersion`, never throws |
+
+Responses come back in MISP shape (`{Event: {...}}`, `{Attribute: [...]}`, etc.). In mock mode, `MispClient` re-shapes `MockData` rows into the same envelopes so callers and tests do not need to branch.
+
+Failures (transport, non-2xx, malformed JSON, MISP error envelope) raise `App\Services\Exceptions\MispClientException`.
+
+### CLI probe
+
+```bash
+php artisan misp:ping
+```
+
+Prints the configured mode, server version, and `perm_sync`. Use it to verify connectivity and credentials before flipping the UI to live mode.
+
+The Admin Settings page also surfaces the live server version and a reachable / unreachable badge.
