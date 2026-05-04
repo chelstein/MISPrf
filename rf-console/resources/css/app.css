@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .panel {
+    @apply rounded-lg bg-navy-800/80 border border-slate-700/40 shadow-panel backdrop-blur-sm;
+  }
+  .panel-title {
+    @apply text-xs font-mono uppercase tracking-[0.18em] text-slate-400;
+  }
+  .stat-num {
+    @apply font-mono text-3xl font-semibold text-slate-50;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(34,211,238,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,211,238,0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+}
