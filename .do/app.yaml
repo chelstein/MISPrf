@@ -1,0 +1,77 @@
+# DigitalOcean App Platform spec for rf-console.
+#
+# Build: docker build at rf-console/Dockerfile, context = rf-console/.
+# Runtime: Apache on 8080; App Platform terminates TLS in front and
+# routes /* to this single web service.
+#
+# Secrets (APP_KEY, MISP_API_KEY) are declared here without values.
+# Set the real values once via the App Platform dashboard or
+#   doctl apps update <id> --spec .do/app.yaml
+# after running the helper:
+#   echo "base64:$(openssl rand -base64 32)"   # for APP_KEY
+#
+# To deploy from CLI:
+#   doctl apps create --spec .do/app.yaml
+# Then in the dashboard, set the SECRET env vars and trigger a deploy.
+
+name: rf-console
+region: nyc
+
+services:
+  - name: web
+    source_dir: rf-console
+    dockerfile_path: rf-console/Dockerfile
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    health_check:
+      http_path: /up
+
+    github:
+      repo: chelstein/MISPrf
+      branch: claude/rf-intelligence-frontend-JSiPe
+      deploy_on_push: true
+
+    envs:
+      - key: APP_NAME
+        value: "RF Console"
+        scope: RUN_AND_BUILD_TIME
+      - key: APP_ENV
+        value: production
+        scope: RUN_AND_BUILD_TIME
+      - key: APP_DEBUG
+        value: "false"
+        scope: RUN_AND_BUILD_TIME
+      - key: APP_TIMEZONE
+        value: UTC
+        scope: RUN_AND_BUILD_TIME
+      - key: APP_URL
+        value: ${APP_URL}
+        scope: RUN_AND_BUILD_TIME
+      - key: LOG_CHANNEL
+        value: stderr
+        scope: RUN_AND_BUILD_TIME
+      - key: LOG_LEVEL
+        value: info
+        scope: RUN_AND_BUILD_TIME
+
+      # Generated locally with: echo "base64:$(openssl rand -base64 32)"
+      - key: APP_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+
+      # Live MISP backend
+      - key: RF_CONSOLE_USE_MOCK
+        value: "false"
+        scope: RUN_AND_BUILD_TIME
+      - key: MISP_BASE_URL
+        value: https://167.99.183.214
+        scope: RUN_AND_BUILD_TIME
+      - key: MISP_VERIFY_TLS
+        value: "false"
+        scope: RUN_AND_BUILD_TIME
+      - key: MISP_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
