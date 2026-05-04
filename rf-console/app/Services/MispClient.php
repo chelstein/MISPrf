@@ -56,13 +56,19 @@ class MispClient
     /**
      * GET /events/view/{id}
      *
+     * Accepts either the raw MISP numeric id ("123") or the UI-style
+     * id ("RF-123"); the prefix is stripped before hitting MISP.
+     *
      * @return array<string, mixed>|null Inner Event object, or null if absent.
      */
     public function getEvent(string $id): ?array
     {
+        $id = (string) preg_replace('/^RF-/i', '', $id);
+
         if ($this->useMock) {
             foreach ($this->mockEventList([]) as $env) {
-                if (($env['Event']['id'] ?? null) === $id) {
+                $eid = (string) ($env['Event']['id'] ?? '');
+                if ($eid === $id || $eid === 'RF-'.$id) {
                     return $env['Event'];
                 }
             }
@@ -144,7 +150,7 @@ class MispClient
     {
         if ($this->useMock) {
             return [
-                'version' => 'mock-2.4.190',
+                'version' => 'mock-2.5.36',
                 'perm_sync' => true,
                 'mock' => true,
             ];
@@ -215,9 +221,6 @@ class MispClient
             throw new MispClientException('MISP returned non-JSON body for '.$path);
         }
 
-        // MISP error envelopes occasionally come back with a 200 status
-        // when an action is rejected at the application layer. Detect
-        // and surface them so callers do not silently swallow errors.
         if (isset($decoded['name'], $decoded['message'], $decoded['url'])
             && ! isset($decoded['response'], $decoded['Event'], $decoded['Attribute'], $decoded['Tag'])) {
             throw new MispClientException(
@@ -255,7 +258,10 @@ class MispClient
 
         if (! empty($params['eventid'])) {
             $needle = (string) $params['eventid'];
-            $events = array_values(array_filter($events, fn ($e) => $e['id'] === $needle));
+            $events = array_values(array_filter(
+                $events,
+                fn ($e) => $e['id'] === $needle || $e['id'] === 'RF-'.$needle
+            ));
         }
         if (! empty($params['tags']) && is_array($params['tags'])) {
             $needles = array_map('strval', $params['tags']);
@@ -298,7 +304,21 @@ class MispClient
             'Orgc' => ['name' => $e['source'] ?? 'Unknown'],
             'Org' => ['name' => $e['source'] ?? 'Unknown'],
             'Tag' => array_map(fn ($t) => ['name' => $t], $e['tags'] ?? []),
+            'Attribute' => $this->shapeMockAttributesForEvent($e['id']),
         ];
+    }
+
+    private function shapeMockAttributesForEvent(string $eventId): array
+    {
+        return array_map(fn ($a) => [
+            'event_id' => $eventId,
+            'type' => $a['type'],
+            'category' => $a['category'],
+            'value' => $a['value'],
+            'to_ids' => $a['ids'] ? '1' : '0',
+            'comment' => $a['comment'],
+            'distribution' => '5',
+        ], $this->mockData->attributesForEvent($eventId));
     }
 
     private function mockAttributeList(array $params): array
@@ -306,7 +326,10 @@ class MispClient
         $rows = $this->mockData->allAttributes();
         if (! empty($params['eventid'])) {
             $needle = (string) $params['eventid'];
-            $rows = array_values(array_filter($rows, fn ($r) => $r['event_id'] === $needle));
+            $rows = array_values(array_filter(
+                $rows,
+                fn ($r) => $r['event_id'] === $needle || $r['event_id'] === 'RF-'.$needle
+            ));
         }
         if (! empty($params['type'])) {
             $needle = (string) $params['type'];
@@ -329,10 +352,16 @@ class MispClient
 
     private function mockSightingList(array $params): array
     {
-        $eventId = $params['context_id'] ?? $params['event_id'] ?? null;
-        $rows = $eventId
-            ? $this->mockData->sightingsForEvent((string) $eventId)
-            : $this->mockData->recentSightings();
+        $eventId = $params['context_id']
+            ?? $params['event_id']
+            ?? (($params['context'] ?? null) === 'event' ? ($params['id'] ?? null) : null);
+
+        if ($eventId !== null) {
+            $eventId = (string) preg_replace('/^RF-/i', '', (string) $eventId);
+            $rows = $this->mockData->sightingsForEvent('RF-'.$eventId);
+        } else {
+            $rows = $this->mockData->recentSightings();
+        }
 
         $i = 0;
         return array_map(function ($s) use (&$i, $eventId) {
@@ -343,6 +372,9 @@ class MispClient
                 'date_sighting' => (string) (strtotime($s['ts'] ?? 'now') ?: time()),
                 'source' => $s['source'] ?? '',
                 'type' => '0',
+                'lat' => $s['lat'] ?? null,
+                'lon' => $s['lon'] ?? null,
+                'snr' => $s['snr'] ?? null,
             ];
         }, $rows);
     }

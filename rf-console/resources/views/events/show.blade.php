@@ -35,6 +35,9 @@
       <x-spectrum-panel :bins="$spectrum" title="Capture Snapshot" :range="$event['frequency']" />
       <div class="rounded-lg border border-slate-800/60 bg-navy-800/60 p-4">
         <div class="text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-3">Signal Attributes</div>
+        @if(empty($attributes))
+          <div class="text-[12px] text-slate-500 font-mono">No attributes on this event.</div>
+        @else
         <table class="w-full text-sm">
           <thead class="text-[10px] uppercase tracking-[0.2em] text-slate-500">
             <tr><th class="text-left py-1">Type</th><th class="text-left py-1">Category</th><th class="text-left py-1">Value</th><th class="text-left py-1">IDS</th><th class="text-left py-1">Comment</th></tr>
@@ -51,26 +54,35 @@
             @endforeach
           </tbody>
         </table>
+        @endif
       </div>
     </div>
     <div class="space-y-4">
       <x-activity-timeline :items="$timeline" title="Event Timeline"/>
       <div class="rounded-lg border border-slate-800/60 bg-navy-800/60 p-4">
         <div class="text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-3">Signal Sightings</div>
+        @if(empty($sightings))
+          <div class="text-[12px] text-slate-500 font-mono">No sightings recorded.</div>
+        @else
         <ul class="space-y-2">
           @foreach($sightings as $s)
             <li class="flex items-center justify-between text-[12px]">
               <div>
-                <div class="text-slate-200">{{ $s['source'] }}</div>
-                <div class="text-slate-500 font-mono">{{ $s['lat'] }}, {{ $s['lon'] }}</div>
+                <div class="text-slate-200">{{ $s['source'] ?: '?' }}</div>
+                @if(($s['lat'] ?? null) !== null && ($s['lon'] ?? null) !== null)
+                  <div class="text-slate-500 font-mono">{{ $s['lat'] }}, {{ $s['lon'] }}</div>
+                @endif
               </div>
               <div class="text-right">
-                <div class="font-mono text-signal-300">{{ $s['snr'] }} dB</div>
+                @if(($s['snr'] ?? null) !== null)
+                  <div class="font-mono text-signal-300">{{ $s['snr'] }} dB</div>
+                @endif
                 <div class="text-slate-500 font-mono text-[10px]">{{ $s['ts'] }}</div>
               </div>
             </li>
           @endforeach
         </ul>
+        @endif
       </div>
     </div>
   </div>

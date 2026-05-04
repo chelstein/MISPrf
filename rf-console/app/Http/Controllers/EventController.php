@@ -2,31 +2,50 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\MispClient;
+use App\Services\MispTransformer;
 use App\Services\MockData;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class EventController extends Controller
 {
-    public function index(MockData $data)
+    public function index(MispClient $client, MispTransformer $tx)
     {
+        $envelopes = $client->searchEvents(['limit' => 100]);
         return view('events.index', [
-            'events' => $data->events(),
+            'events' => $tx->events($envelopes),
         ]);
     }
 
-    public function show(string $id, MockData $data)
+    public function show(string $id, MispClient $client, MispTransformer $tx, MockData $mock)
     {
-        $event = collect($data->events())->firstWhere('id', $id);
-        if (! $event) {
+        $rawId = $tx->rawId($id);
+        $eventInner = $client->getEvent($rawId);
+        if (! $eventInner) {
             throw new NotFoundHttpException('RF event '.$id.' not found');
         }
+        $envelope = ['Event' => $eventInner];
+        $event = $tx->event($envelope);
+
+        $attributes = $tx->attributes(
+            $eventInner['Attribute'] ?? [],
+            $rawId,
+            $event['info']
+        );
+
+        try {
+            $sightingEnvelopes = $client->searchSightings(['context' => 'event', 'id' => $rawId]);
+        } catch (\Throwable) {
+            $sightingEnvelopes = [];
+        }
+        $sightings = $tx->sightings($sightingEnvelopes);
 
         return view('events.show', [
             'event' => $event,
-            'attributes' => $data->attributesForEvent($id),
-            'sightings' => $data->sightingsForEvent($id),
-            'spectrum' => $data->spectrum(),
-            'timeline' => $data->timelineForEvent($id),
+            'attributes' => $attributes,
+            'sightings' => $sightings,
+            'spectrum' => $mock->spectrum(),
+            'timeline' => $tx->timelineFor($envelope),
         ]);
     }
 }
