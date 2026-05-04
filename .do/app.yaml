@@ -31,7 +31,7 @@ services:
 
     github:
       repo: chelstein/MISPrf
-      branch: claude/rf-intelligence-frontend-JSiPe
+      branch: "2.5"
       deploy_on_push: true
 
     envs:
